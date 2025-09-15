@@ -3,3 +3,5 @@ uvicorn==0.34.2
 pydantic==2.11.4
 strands-agents
 strands-agents-tools
+pytest==7.4.3
+pytest-asyncio==0.21.1

@@ -1,5 +1,5 @@
 """
-API module for the chat application.
+API package for the chat application.
 """
 
 from .routes import (
