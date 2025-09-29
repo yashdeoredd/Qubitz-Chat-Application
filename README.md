@@ -1,1 +1,0 @@
-# Qubitz-Chat-Application
