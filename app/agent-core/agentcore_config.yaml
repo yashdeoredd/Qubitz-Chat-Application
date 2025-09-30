@@ -1,0 +1,84 @@
+# AgentCore CLI configuration for starter toolkit deployment
+agent:
+  name: workflow-multi-agent-system
+  entrypoint: agent.py
+  runtime:
+    network_mode: PUBLIC  # or SANDBOX, VPC
+    execution_role: AgentCoreWorkflowRuntimeRole
+  memory:
+    enabled: true
+    short_term:
+      max_turns: 10
+    long_term:
+      strategies:
+        - type: semantic
+          namespaces:
+            - /facts/{actorId}
+  identity:
+    enabled: true
+    providers:
+      - name: google-workspace
+        type: oauth2
+      - name: github
+        type: oauth2
+  observability:
+    enabled: true
+    tracing:
+      sampling_rate: 0.1  # 10% of requests
+    metrics:
+      - agent.invocations
+      - agent.latency
+      - agent.errors
+      - agent.token_usage
+
+# ============================================================================
+# GITHUB ACTIONS CI/CD
+# ============================================================================
+# File: .github/workflows/deploy.yml
+
+name: Deploy to AgentCore
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: agentcore-workflow-agents
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+    
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+    
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        platforms: linux/arm64
+        push: true
+        tags: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+    
+    - name: Deploy to AgentCore
+      run: |
+        python deploy_to_agentcore.py --auto \
+          --image ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }} \
+          --region ${{ env.AWS_REGION }}
